@@ -4,7 +4,7 @@
 - налагоджувальна плата (Arduino Nano);
 - кнопка (Сенсорна TTP223);
 - адресне саітодіодне коло (8 світлодіодів);
-- Модуль датчик освітленості (LM393).
+- модуль датчик освітленості (LM393).
 #### <a href="https://wokwi.com/projects/353313031195168769">Емуляція проєкту на Wokwi</a>
 
 ## Бібліотеки які використані в проєкті: <a href="https://github.com/FastLED/FastLED">FastLED, </a> <a href="https://github.com/GyverLibs/EncButton">EncButton, </a> <a href="https://github.com/GyverLibs/TimerMs">TimerMs.</a>

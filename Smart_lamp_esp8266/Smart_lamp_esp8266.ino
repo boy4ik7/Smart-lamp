@@ -10,7 +10,7 @@
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 GyverDBFile db(&LittleFS, "/data.db");
-SettingsESP sett("Лампа", &db);
+SettingsESP sett("Смарт-лампа", &db);
 
 DB_KEYS(
     kk,
@@ -26,25 +26,25 @@ DB_KEYS(
 
 void build(sets::Builder& b) {
   if (b.beginGroup("Wi-Fi")) {
-    b.Input(kk::wifi_ssid, "Имя Wi-Fi сети");
+    b.Input(kk::wifi_ssid, "Ім'я Wi-Fi мережі");
     b.Pass(kk::wifi_pass, "Пароль");
-    if (b.Button(kk::apply, "Подключить")) {
+    if (b.Button(kk::apply, "Підключити")) {
       db.update();
       WiFiConnector.connect(db[kk::wifi_ssid], db[kk::wifi_pass]);
     }
     b.endGroup();
   }
   if (b.beginGroup("LED")) {
-    //b.Input(kk::led_num, "Количество светодиодов");
-    b.Slider(kk::brightness, "Яркость 💡", 0, 255, 1);
-    b.Select(kk::mode, "Режим", "Радуга;Огонь;Случайный цвет;Смена цвета;Конфетти;Свой цвет");
+    //b.Input(kk::led_num, "Кількіть світлодіодів");
+    b.Slider(kk::brightness, "Яскравість 💡", 0, 255, 1);
+    b.Select(kk::mode, "Режим", "Радуга;Вогоеь;Випадковий колір;Зміна кольору;Конфетті;Свій колір");
     db.update();
     strip.setBrightness(db[kk::brightness]);
     b.reload();
     b.endGroup();
   }
   if (db[kk::mode] == 5) {
-    if (b.beginGroup("Параметры цвета")) {
+    if (b.beginGroup("Параметри кольору")) {
       b.Slider(kk::red, "Red", 0, 255, 1);
       b.Slider(kk::green, "Green", 0, 255, 1);
       b.Slider(kk::blue, "Blue", 0, 255, 1);
@@ -112,7 +112,7 @@ void rainbow() {
     strip.setPixelColor(i, strip.ColorHSV(hue + (i * 65536 / NUM_LEDS), 255, 255));
   }
   strip.show();
-  hue += 256;  // Изменяем оттенок для плавного перехода
+  hue += 256;
   delay(20);
 }
 

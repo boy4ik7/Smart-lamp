@@ -217,6 +217,7 @@ void setup() {
 void loop() {
     WiFiConnector.tick();
     sett.tick();
+    scan_wifi();
     if (db[kk::mode] == 0) rainbow();
     if (db[kk::mode] == 1) fire();
     if (db[kk::mode] == 2) random_color();

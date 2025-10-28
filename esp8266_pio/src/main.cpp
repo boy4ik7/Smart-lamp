@@ -29,40 +29,42 @@ DB_KEYS(
     apply);
 
 void scan_wifi() {
-  int scans_networks = WiFi.scanNetworks();
-  db_ram[kk::ssids] = "";
-  db_ram[kk::ssids_index] = 0;
-  for (int i = 0; i < scans_networks; i++) {
-    db_ram[kk::ssids] += WiFi.SSID(i) + ";";
+  if (db_ram[kk::dynamic_flag] == 1) {
+    int scans_networks = WiFi.scanNetworks();
+    db_ram[kk::ssids] = "";
+    db_ram[kk::ssids_index] = 0;
+    for (int i = 0; i < scans_networks; i++) {
+      db_ram[kk::ssids] += String(WiFi.SSID(i) + ";");
+    }
+    db_ram[kk::dynamic_flag] = 2;
   }
 }
 
 void build(sets::Builder& b) {
   if (b.beginGroup("Wi-Fi")) {
-    if (db[kk::dynamic_flag]) b.Select(kk::ssids_index, "Found SSIDS:", db_ram[kk::ssids]);
+    if (db_ram[kk::dynamic_flag] == 2) b.Select(kk::ssids_index, "Found SSIDS:", db_ram[kk::ssids]);
     else b.Input(kk::wifi_ssid, "Manual input SSID:");
     b.Pass(kk::wifi_pass, "Password:");
-    if (db[kk::dynamic_flag]) {
+    if (db_ram[kk::dynamic_flag] > 0) {
       if (b.Button("Cancel", sets::Colors::Red)) {
-        db[kk::dynamic_flag] = false;
+        db_ram[kk::dynamic_flag] = 0;
         db_ram[kk::wifi_pass] = "";
         sett.attachDB(&db);
         b.reload();
       }
     } else {
       if (b.Button("Find networks", sets::Colors::Blue)) {
-        db[kk::dynamic_flag] = true;
-        scan_wifi();
+        db_ram[kk::dynamic_flag] = 1;
         sett.attachDB(&db_ram);
         b.reload();
       }
     }
     if (b.Button("Connect")) {
-      if(db[kk::dynamic_flag]) {
+      if (db_ram[kk::dynamic_flag] == 2) {
         db_ram[kk::wifi_ssid] = WiFi.SSID(db_ram[kk::ssids_index]);
         db[kk::wifi_ssid] = String(db_ram[kk::wifi_ssid]);
         db[kk::wifi_pass] = String(db_ram[kk::wifi_pass]);
-        db[kk::dynamic_flag] = false;
+        db_ram[kk::dynamic_flag] = 0;
         db_ram[kk::wifi_pass] = "";
       }
       Serial.println("Connect to: \n" + String(db[kk::wifi_ssid]) + "\n"+ String(db[kk::wifi_pass]) + "\n");

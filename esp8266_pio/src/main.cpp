@@ -4,6 +4,7 @@
 #include <SettingsESP.h>
 #include <WiFiConnector.h>
 #include <Adafruit_NeoPixel.h>
+#include <GTimer.h>
 #define LED_PIN 2
 #define MOSFET_PIN 5
 #define NUM_LEDS 8
@@ -11,7 +12,11 @@ Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 GyverDBFile db(&LittleFS, "/data.db");
 GyverDB db_ram;
-SettingsESP sett("Smart Lamp 💡", &db);
+SettingsESP sett("Smart Lamp 💡");
+GTimer<millis> tmr;
+
+bool wifi_connect_status, wifi_setting_status, wifi_flag_status;
+int mode_status;
 
 DB_KEYS(
     kk,
@@ -20,7 +25,6 @@ DB_KEYS(
     dynamic_flag,
     ssids,
     ssids_index,
-    //led_num,
     mode,
     brightness,
     red,
@@ -41,62 +45,86 @@ void scan_wifi() {
 }
 
 void build(sets::Builder& b) {
-  if (b.beginGroup("Wi-Fi")) {
-    if (db_ram[kk::dynamic_flag] == 2) b.Select(kk::ssids_index, "Found SSIDS:", db_ram[kk::ssids]);
-    else b.Input(kk::wifi_ssid, "Manual input SSID:");
-    b.Pass(kk::wifi_pass, "Password:");
-    if (db_ram[kk::dynamic_flag] > 0) {
-      if (b.Button("Cancel", sets::Colors::Red)) {
-        db_ram[kk::dynamic_flag] = 0;
-        db_ram[kk::wifi_pass] = "";
+  if (wifi_connect_status == false && wifi_flag_status == true) {
+    wifi_flag_status = false;
+    wifi_setting_status = true;
+    sett.attachDB(&db);
+    b.reload();
+  }
+  if (wifi_connect_status == true && wifi_flag_status == true) {
+    wifi_flag_status = false;
+    wifi_setting_status = false;
+    sett.attachDB(&db_ram);
+    b.reload();
+  }
+  if (wifi_setting_status == true) {
+    if (b.Button("Settings lamp")) {
+      wifi_setting_status = false;
+      sett.attachDB(&db_ram);
+      b.reload();
+    }
+    if (b.beginGroup("Wi-Fi")) {
+      if (db_ram[kk::dynamic_flag] == 2) b.Select(kk::ssids_index, "Found SSIDS:", db_ram[kk::ssids]);
+      else b.Input(kk::wifi_ssid, "Manual input SSID:");
+      b.Pass(kk::wifi_pass, "Password:");
+      if (db_ram[kk::dynamic_flag] > 0) {
+        if (b.Button("Cancel", sets::Colors::Red)) {
+          db_ram[kk::dynamic_flag] = 0;
+          db_ram[kk::wifi_pass] = "";
+          sett.attachDB(&db);
+          b.reload();
+        }
+      } else {
+        if (b.Button("Find networks", sets::Colors::Blue)) {
+          db_ram[kk::dynamic_flag] = 1;
+          sett.attachDB(&db_ram);
+          b.reload();
+        }
+      }
+      if (b.Button("Connect")) {
+        if (db_ram[kk::dynamic_flag] == 2) {
+          db_ram[kk::wifi_ssid] = WiFi.SSID(db_ram[kk::ssids_index]);
+          db[kk::wifi_ssid] = String(db_ram[kk::wifi_ssid]);
+          db[kk::wifi_pass] = String(db_ram[kk::wifi_pass]);
+          db_ram[kk::dynamic_flag] = 0;
+          db_ram[kk::wifi_pass] = "";
+        }
+        Serial.println("Connect to: \n" + String(db[kk::wifi_ssid]) + "\n"+ String(db[kk::wifi_pass]) + "\n");
+        WiFiConnector.connect(db[kk::wifi_ssid], db[kk::wifi_pass]);
+        db.update();
         sett.attachDB(&db);
         b.reload();
       }
-    } else {
-      if (b.Button("Find networks", sets::Colors::Blue)) {
-        db_ram[kk::dynamic_flag] = 1;
-        sett.attachDB(&db_ram);
-        b.reload();
-      }
+      b.endGroup();
     }
-    if (b.Button("Connect")) {
-      if (db_ram[kk::dynamic_flag] == 2) {
-        db_ram[kk::wifi_ssid] = WiFi.SSID(db_ram[kk::ssids_index]);
-        db[kk::wifi_ssid] = String(db_ram[kk::wifi_ssid]);
-        db[kk::wifi_pass] = String(db_ram[kk::wifi_pass]);
-        db_ram[kk::dynamic_flag] = 0;
-        db_ram[kk::wifi_pass] = "";
-      }
-      Serial.println("Connect to: \n" + String(db[kk::wifi_ssid]) + "\n"+ String(db[kk::wifi_pass]) + "\n");
-      WiFiConnector.connect(db[kk::wifi_ssid], db[kk::wifi_pass]);
-      db.update();
+  } else {
+    if (b.Button("Settings Wi-Fi", sets::Colors::Blue)) {
+      wifi_setting_status = true;
       sett.attachDB(&db);
       b.reload();
     }
-    b.endGroup();
-  }
-  if (b.beginGroup("LED")) {
-    //b.Input(kk::led_num, "Led nums:");
-    b.Slider(kk::brightness, "Brightness 💡", 0, 255, 1);
-    b.Select(kk::mode, "Mode", "Rainbow;Fire;Random color;Change color;Confetti;Custom");
-    if (b.Button("Update", sets::Colors::Aqua)) {
-      db.update();
-      strip.setBrightness(db[kk::brightness]);
-      b.reload();
-    }
-    b.endGroup();
-  }
-  if (db[kk::mode] == 5) {
-    if (b.beginGroup("Color")) {
-      b.Slider(kk::red, "Red", 0, 255, 1);
-      b.Slider(kk::green, "Green", 0, 255, 1);
-      b.Slider(kk::blue, "Blue", 0, 255, 1);
-      db.update();
+    if (b.beginGroup("LED")) {
+      //b.Input(kk::led_num, "Led nums:");
+      b.Slider(kk::brightness, "Brightness 💡", 0, 255, 1);
+      b.Select(kk::mode, "Mode", "Rainbow;Fire;Random color;Change color;Confetti;Custom");
+      if (b.Button("Update", sets::Colors::Aqua)) {
+        strip.setBrightness(db_ram[kk::brightness]);
+        mode_status = db_ram[kk::mode];
+        tmr.start();
+        b.reload();
+      }
       b.endGroup();
+    }
+    if (db_ram[kk::mode] == 5) {
+      if (b.beginGroup("Color")) {
+        b.Slider(kk::red, "Red", 0, 255, 1);
+        b.Slider(kk::green, "Green", 0, 255, 1);
+        b.Slider(kk::blue, "Blue", 0, 255, 1);
+        b.endGroup();
+      }
     }
   }
 }
-
 
 void rainbow() {
   static uint16_t hue = 0;
@@ -139,7 +167,7 @@ void color_switch() {
 
 void custom() {
  for (int i = 0; i < NUM_LEDS; i++) {
-    strip.setPixelColor(i, strip.Color(db[kk::red], db[kk::green], db[kk::blue]));
+    strip.setPixelColor(i, strip.Color(db_ram[kk::red], db_ram[kk::green], db_ram[kk::blue]));
   }
   strip.show();
   delay(10);
@@ -174,7 +202,6 @@ void colorExplosion() {
   strip.setPixelColor(pos, strip.Color(r, g, b));
   strip.show();
   delay(50);
-
   for (int i = 0; i < NUM_LEDS; i++) {
     uint32_t color = strip.getPixelColor(i);
     uint8_t r = (color >> 16) & 0xFF;
@@ -187,22 +214,53 @@ void colorExplosion() {
   }
 }
 
+void db_update() {
+  if (tmr) {
+    db[kk::mode] = db_ram[kk::mode];
+    db[kk::brightness] = db_ram[kk::brightness];
+    db[kk::red] = db_ram[kk::red];
+    db[kk::green] = db_ram[kk::green];
+    db[kk::blue] = db_ram[kk::blue];
+    db.update();
+    tmr.stop();
+  }
+}
+
 void setup() {
   LittleFS.begin();
   db.begin();
   db.init(kk::wifi_ssid, "");
   db.init(kk::wifi_pass, "");
-  //db.init(kk::led_num, 8);
-  db.init(kk::mode, 4);
-  db.init(kk::brightness, 123);
+  db.init(kk::mode, 5);
+  db.init(kk::brightness, 100);
   db.init(kk::red, 100);
   db.init(kk::green, 100);
   db.init(kk::blue, 100);
+  db_ram.init(kk::mode, 5);
+  db_ram[kk::mode] = db[kk::mode];
+  db_ram.init(kk::brightness, 100);
+  db_ram[kk::brightness] = db[kk::brightness];
+  db_ram.init(kk::red, 100);
+  db_ram[kk::red] = db[kk::red];
+  db_ram.init(kk::green, 100);
+  db_ram[kk::green] = db[kk::green];
+  db_ram.init(kk::blue, 100);
+  db_ram[kk::blue] = db[kk::blue];
   db_ram.init(kk::wifi_ssid, "");
   db_ram.init(kk::wifi_pass, "");
   db_ram.init(kk::dynamic_flag, false);
   db_ram.init(kk::ssids, "");
   db_ram.init(kk::ssids_index, 0);
+  WiFiConnector.onConnect([]() {
+    wifi_connect_status = true;
+    wifi_flag_status = true;
+    sett.reload();
+  });
+  WiFiConnector.onError([]() {
+    wifi_connect_status = false;
+    wifi_flag_status = true;
+    sett.reload();
+  });
   WiFiConnector.connect(db[kk::wifi_ssid], db[kk::wifi_pass]);
   sett.begin();
   sett.onBuild(build);
@@ -211,17 +269,36 @@ void setup() {
   digitalWrite(MOSFET_PIN, HIGH);
   strip.begin();
   strip.show();
-  strip.setBrightness(db[kk::brightness]);
+  strip.setBrightness(db_ram[kk::brightness]);
+  mode_status = db_ram[kk::mode];
+  tmr.setMode(GTMode::Overflow);
+  tmr.setTime(300000);
+  tmr.stop();
 }
 
 void loop() {
     WiFiConnector.tick();
     sett.tick();
     scan_wifi();
-    if (db[kk::mode] == 0) rainbow();
-    if (db[kk::mode] == 1) fire();
-    if (db[kk::mode] == 2) random_color();
-    if (db[kk::mode] == 3) color_switch();
-    if (db[kk::mode] == 4) confettiEffect();
-    if (db[kk::mode] == 5) custom();
+    db_update();
+    switch (mode_status) {
+      case 0:
+        rainbow();
+        break;
+      case 1:
+        fire();
+        break;
+      case 2:
+        random_color();
+        break;
+      case 3:
+        color_switch();
+        break;
+      case 4:
+        confettiEffect();
+        break;
+      case 5:
+        custom();
+        break;
+    }
 }

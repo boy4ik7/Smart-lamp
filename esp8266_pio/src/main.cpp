@@ -12,10 +12,11 @@ Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 GyverDBFile db(&LittleFS, "/data.db");
 GyverDB db_ram;
-SettingsESP sett("Smart Lamp 💡");
+SettingsESP sett("Smart Lamp 💡", &db_ram);
+//sets::Logger logger(500);
 GTimer<millis> tmr;
 
-bool wifi_connect_status, wifi_setting_status, wifi_flag_status;
+bool wifi_setting_status;
 int mode_status;
 
 DB_KEYS(
@@ -45,18 +46,6 @@ void scan_wifi() {
 }
 
 void build(sets::Builder& b) {
-  if (wifi_connect_status == false && wifi_flag_status == true) {
-    wifi_flag_status = false;
-    wifi_setting_status = true;
-    sett.attachDB(&db);
-    b.reload();
-  }
-  if (wifi_connect_status == true && wifi_flag_status == true) {
-    wifi_flag_status = false;
-    wifi_setting_status = false;
-    sett.attachDB(&db_ram);
-    b.reload();
-  }
   if (wifi_setting_status == true) {
     if (b.Button("Settings lamp")) {
       wifi_setting_status = false;
@@ -111,6 +100,7 @@ void build(sets::Builder& b) {
         strip.setBrightness(db_ram[kk::brightness]);
         mode_status = db_ram[kk::mode];
         tmr.start();
+        //logger.println("tmr.start"); 
         b.reload();
       }
       b.endGroup();
@@ -124,7 +114,12 @@ void build(sets::Builder& b) {
       }
     }
   }
+  //b.Log(H(log), logger);
 }
+
+//void update(sets::Updater& upd) {
+//  upd.update(H(log), logger);
+//}
 
 void rainbow() {
   static uint16_t hue = 0;
@@ -216,12 +211,12 @@ void colorExplosion() {
 
 void db_update() {
   if (tmr) {
-    db[kk::mode] = db_ram[kk::mode];
-    db[kk::brightness] = db_ram[kk::brightness];
-    db[kk::red] = db_ram[kk::red];
-    db[kk::green] = db_ram[kk::green];
-    db[kk::blue] = db_ram[kk::blue];
-    db.update();
+    db.set(kk::mode, db_ram[kk::mode].toInt());
+    db.set(kk::brightness, db_ram[kk::brightness].toInt());
+    db.set(kk::red, db_ram[kk::red].toInt());
+    db.set(kk::green, db_ram[kk::green].toInt());
+    db.set(kk::blue, db_ram[kk::blue].toInt());
+    db.update();  
     tmr.stop();
   }
 }
@@ -236,34 +231,20 @@ void setup() {
   db.init(kk::red, 100);
   db.init(kk::green, 100);
   db.init(kk::blue, 100);
-  db_ram.init(kk::mode, 5);
-  db_ram[kk::mode] = db[kk::mode];
-  db_ram.init(kk::brightness, 100);
-  db_ram[kk::brightness] = db[kk::brightness];
-  db_ram.init(kk::red, 100);
-  db_ram[kk::red] = db[kk::red];
-  db_ram.init(kk::green, 100);
-  db_ram[kk::green] = db[kk::green];
-  db_ram.init(kk::blue, 100);
-  db_ram[kk::blue] = db[kk::blue];
+  db_ram.set(kk::mode, db[kk::mode].toInt());
+  db_ram.set(kk::brightness, db[kk::brightness].toInt());
+  db_ram.set(kk::red, db[kk::red].toInt());
+  db_ram.set(kk::green, db[kk::green].toInt());
+  db_ram.set(kk::blue, db[kk::blue].toInt());
   db_ram.init(kk::wifi_ssid, "");
   db_ram.init(kk::wifi_pass, "");
   db_ram.init(kk::dynamic_flag, false);
   db_ram.init(kk::ssids, "");
   db_ram.init(kk::ssids_index, 0);
-  WiFiConnector.onConnect([]() {
-    wifi_connect_status = true;
-    wifi_flag_status = true;
-    sett.reload();
-  });
-  WiFiConnector.onError([]() {
-    wifi_connect_status = false;
-    wifi_flag_status = true;
-    sett.reload();
-  });
   WiFiConnector.connect(db[kk::wifi_ssid], db[kk::wifi_pass]);
   sett.begin();
   sett.onBuild(build);
+  //sett.onUpdate(update);
   delay(1000);
   pinMode(MOSFET_PIN, OUTPUT);
   digitalWrite(MOSFET_PIN, HIGH);

@@ -17,7 +17,7 @@ SettingsESP sett("Smart Lamp 💡", &db_ram);
 GTimer<millis> tmr;
 
 bool wifi_setting_status;
-int mode_status;
+int mode_status, red_, green_, blue_;
 
 DB_KEYS(
     kk,
@@ -99,6 +99,9 @@ void build(sets::Builder& b) {
       if (b.Button("Update", sets::Colors::Aqua)) {
         strip.setBrightness(db_ram[kk::brightness]);
         mode_status = db_ram[kk::mode];
+        red_ = db_ram[kk::red];
+        green_ = db_ram[kk::green];
+        blue_ = db_ram[kk::blue];
         tmr.start();
         //logger.println("tmr.start"); 
         b.reload();
@@ -162,7 +165,7 @@ void color_switch() {
 
 void custom() {
  for (int i = 0; i < NUM_LEDS; i++) {
-    strip.setPixelColor(i, strip.Color(db_ram[kk::red], db_ram[kk::green], db_ram[kk::blue]));
+    strip.setPixelColor(i, strip.Color(red_, green_, blue_));
   }
   strip.show();
   delay(10);
